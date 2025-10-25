@@ -9,12 +9,12 @@ import lombok.Data;
 import java.util.Date;
 
 /**
- * 用户
- * @TableName user
+ * 题目
+ * @TableName question
  */
-@TableName(value ="user")
+@TableName(value ="question")
 @Data
-public class User {
+public class Question {
     /**
      * id
      */
@@ -22,44 +22,29 @@ public class User {
     private Long id;
 
     /**
-     * 账号
+     * 标题
      */
-    private String userAccount;
+    private String title;
 
     /**
-     * 密码
+     * 内容
      */
-    private String userPassword;
+    private String content;
 
     /**
-     * 微信开放平台id
+     * 标签列表（json 数组）
      */
-    private String unionId;
+    private String tags;
 
     /**
-     * 公众号openId
+     * 推荐答案
      */
-    private String mpOpenId;
+    private String answer;
 
     /**
-     * 用户昵称
+     * 创建用户 id
      */
-    private String userName;
-
-    /**
-     * 用户头像
-     */
-    private String userAvatar;
-
-    /**
-     * 用户简介
-     */
-    private String userProfile;
-
-    /**
-     * 用户角色：user/admin/ban
-     */
-    private String userRole;
+    private Long userId;
 
     /**
      * 编辑时间
