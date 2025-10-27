@@ -1,5 +1,7 @@
 package com.yangxiao.mianshiya.controller;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.yangxiao.mianshiya.annotation.AuthCheck;
 import com.yangxiao.mianshiya.common.BaseResponse;
@@ -12,7 +14,9 @@ import com.yangxiao.mianshiya.exception.ThrowUtils;
 
 import com.yangxiao.mianshiya.model.dto.QuestionBankQuestion.QuestionBankQuestionAddRequest;
 import com.yangxiao.mianshiya.model.dto.QuestionBankQuestion.QuestionBankQuestionQueryRequest;
+import com.yangxiao.mianshiya.model.dto.QuestionBankQuestion.QuestionBankQuestionRemoveRequest;
 import com.yangxiao.mianshiya.model.dto.QuestionBankQuestion.QuestionBankQuestionUpdateRequest;
+import com.yangxiao.mianshiya.model.entity.QuestionBank;
 import com.yangxiao.mianshiya.model.entity.QuestionBankQuestion;
 import com.yangxiao.mianshiya.model.entity.User;
 import com.yangxiao.mianshiya.model.vo.QuestionBankQuestionVO;
@@ -52,6 +56,7 @@ public class QuestionBankQuestionController {
      * @return
      */
     @PostMapping("/add")
+    @AuthCheck(mustRole = UserConstant.ADMIN_ROLE)
     public BaseResponse<Long> addQuestionBankQuestion(@RequestBody QuestionBankQuestionAddRequest questionBankQuestionAddRequest, HttpServletRequest request) {
         ThrowUtils.throwIf(questionBankQuestionAddRequest == null, ErrorCode.PARAMS_ERROR);
         // todo 在此处将实体类和 DTO 进行转换
@@ -69,6 +74,30 @@ public class QuestionBankQuestionController {
         long newQuestionBankQuestionId = questionBankQuestion.getId();
         return ResultUtils.success(newQuestionBankQuestionId);
     }
+
+    /**
+     * 根据题目题库id移除关联信息
+     *
+     * @param questionBankQuestionRemoveRequest
+     * @return
+     */
+    @PostMapping("/remove")
+    @AuthCheck(mustRole = UserConstant.ADMIN_ROLE)
+    public BaseResponse<Boolean> removeQuestionBankQuestion(@RequestBody QuestionBankQuestionRemoveRequest questionBankQuestionRemoveRequest) {
+        //参数校验
+        ThrowUtils.throwIf(questionBankQuestionRemoveRequest == null, ErrorCode.PARAMS_ERROR);
+        Long questionBankId = questionBankQuestionRemoveRequest.getQuestionBankId();
+        Long questionId = questionBankQuestionRemoveRequest.getQuestionId();
+        ThrowUtils.throwIf(questionBankId == null || questionId == null, ErrorCode.PARAMS_ERROR);
+        //条件查询
+        LambdaQueryWrapper<QuestionBankQuestion> lambdaQueryWrapper = Wrappers.lambdaQuery(QuestionBankQuestion.class)
+                .eq(QuestionBankQuestion::getQuestionBankId, questionBankId)
+                .eq(QuestionBankQuestion::getQuestionId, questionId);
+        boolean result = questionBankQuestionService.remove(lambdaQueryWrapper);
+
+        return ResultUtils.success(result);
+    }
+
 
     /**
      * 删除题库题目关联表

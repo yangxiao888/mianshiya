@@ -9,24 +9,26 @@ import com.yangxiao.mianshiya.constant.CommonConstant;
 import com.yangxiao.mianshiya.exception.ThrowUtils;
 import com.yangxiao.mianshiya.mapper.QuestionBankQuestionMapper;
 import com.yangxiao.mianshiya.model.dto.QuestionBankQuestion.QuestionBankQuestionQueryRequest;
+import com.yangxiao.mianshiya.model.entity.Question;
+import com.yangxiao.mianshiya.model.entity.QuestionBank;
 import com.yangxiao.mianshiya.model.entity.QuestionBankQuestion;
 import com.yangxiao.mianshiya.model.entity.User;
 import com.yangxiao.mianshiya.model.vo.QuestionBankQuestionVO;
 import com.yangxiao.mianshiya.model.vo.UserVO;
 import com.yangxiao.mianshiya.service.QuestionBankQuestionService;
+import com.yangxiao.mianshiya.service.QuestionBankService;
+import com.yangxiao.mianshiya.service.QuestionService;
 import com.yangxiao.mianshiya.service.UserService;
 import com.yangxiao.mianshiya.utils.SqlUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.ObjectUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 
 import javax.annotation.Resource;
 import javax.servlet.http.HttpServletRequest;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.stream.Collectors;
 
 /**
@@ -42,6 +44,13 @@ public class QuestionBankQuestionServiceImpl extends ServiceImpl<QuestionBankQue
     @Resource
     private UserService userService;
 
+    @Resource
+    @Lazy
+    private QuestionService questionService;
+
+    @Resource
+    private QuestionBankService questionBankService;
+
     /**
      * 校验数据
      *
@@ -51,19 +60,18 @@ public class QuestionBankQuestionServiceImpl extends ServiceImpl<QuestionBankQue
     @Override
     public void validQuestionBankQuestion(QuestionBankQuestion questionBankQuestion, boolean add) {
         ThrowUtils.throwIf(questionBankQuestion == null, ErrorCode.PARAMS_ERROR);
-        //暂不需要校验
-       /* // todo 从对象中取值
-        String title = questionBankQuestion.getTitle();
-        // 创建数据时，参数不能为空
-        if (add) {
-            // todo 补充校验规则
-            ThrowUtils.throwIf(StringUtils.isBlank(title), ErrorCode.PARAMS_ERROR);
+        //题目和题库必须存在
+        Long questionBankId = questionBankQuestion.getQuestionBankId();
+        if(questionBankId != null){
+            QuestionBank questionBank = questionBankService.getById(questionBankId);
+            ThrowUtils.throwIf(questionBank == null, ErrorCode.PARAMS_ERROR,"题库不存在");
         }
-        // 修改数据时，有参数则校验
-        // todo 补充校验规则
-        if (StringUtils.isNotBlank(title)) {
-            ThrowUtils.throwIf(title.length() > 80, ErrorCode.PARAMS_ERROR, "标题过长");
-        }*/
+
+        Long questionId = questionBankQuestion.getQuestionId();
+        if(questionId != null){
+            Question question = questionService.getById(questionId);
+            ThrowUtils.throwIf(question == null, ErrorCode.PARAMS_ERROR,"题目不存在");
+        }
     }
 
 
