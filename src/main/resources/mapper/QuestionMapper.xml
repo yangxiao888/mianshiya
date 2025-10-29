@@ -21,4 +21,15 @@
         id,title,content,tags,answer,userId,
         editTime,createTime,updateTime,isDelete
     </sql>
+    <select id="listPostWithDelete" resultMap="BaseResultMap">
+        select
+        <include refid="Base_Column_List"/>
+        from question
+    </select>
+
+    <select id="listQuestionWithDelete" resultType="com.yangxiao.mianshiya.model.entity.Question">
+            select * from question where updateTime >= #{date}
+
+
+    </select>
 </mapper>

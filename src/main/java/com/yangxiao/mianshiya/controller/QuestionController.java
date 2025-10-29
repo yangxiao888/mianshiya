@@ -2,6 +2,7 @@ package com.yangxiao.mianshiya.controller;
 
 import cn.hutool.core.collection.CollUtil;
 import cn.hutool.json.JSONUtil;
+import co.elastic.clients.elasticsearch._types.ElasticsearchException;
 import com.baomidou.mybatisplus.core.conditions.Wrapper;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
@@ -32,6 +33,7 @@ import org.springframework.web.bind.annotation.*;
 
 import javax.annotation.Resource;
 import javax.servlet.http.HttpServletRequest;
+import java.io.IOException;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -254,6 +256,37 @@ public class QuestionController {
         boolean result = questionService.updateById(question);
         ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR);
         return ResultUtils.success(true);
+    }
+
+
+    /**
+     * 分页获取题目列表（封装类）(es)
+     *
+     * @param questionQueryRequest
+     * @param request
+     * @return
+     */
+    @PostMapping("/search/page/vo")
+    public BaseResponse<Page<QuestionVO>> searchQuestionVOByPage(@RequestBody QuestionQueryRequest questionQueryRequest,
+                                                               HttpServletRequest request) {
+        long current = questionQueryRequest.getCurrent();
+        long size = questionQueryRequest.getPageSize();
+        // 限制爬虫
+        ThrowUtils.throwIf(size > 200, ErrorCode.PARAMS_ERROR);
+        Page<Question> questionPage = null;
+        try {
+            //查询Es
+             questionPage = questionService.searchForEs(questionQueryRequest);
+        } catch (ElasticsearchException e) {
+            // 捕获异常，切换数据库
+            log.error("ES查询失败，切换数据库：" + e.getMessage());
+            questionPage = questionService.listQuestionByPage(questionQueryRequest);
+        }
+
+        // 获取封装类
+        return ResultUtils.success(questionService.getQuestionVOPage(questionPage, request));
+
+
     }
 
     // endregion

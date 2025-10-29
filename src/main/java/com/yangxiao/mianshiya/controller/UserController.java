@@ -21,6 +21,7 @@ import com.yangxiao.mianshiya.model.vo.LoginUserVO;
 import com.yangxiao.mianshiya.model.vo.UserVO;
 import com.yangxiao.mianshiya.service.UserService;
 
+import java.util.ArrayList;
 import java.util.List;
 import javax.annotation.Resource;
 import javax.servlet.http.HttpServletRequest;
@@ -316,5 +317,36 @@ public class UserController {
         boolean result = userService.updateById(user);
         ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR);
         return ResultUtils.success(true);
+    }
+
+
+    /**
+     * 添加用户签到记录
+     *
+     * @param request
+     * @return 是否添加成功
+     */
+    @PostMapping("/add/sign_in")
+    public BaseResponse<Boolean> addUserSignIn(HttpServletRequest request) {
+        //判断是否登陆
+        User loginUser = userService.getLoginUser(request);
+        Long id = loginUser.getId();
+        return ResultUtils.success(userService.addUserSignIn(id));
+    }
+
+
+    /**
+     * 获取用户签到记录
+     *
+     * @param year 年份
+     * @param request
+     * @return 签到记录
+     */
+    @GetMapping("/get/sign_in")
+    public BaseResponse<ArrayList<Integer>> getUserSignIn(Integer year, HttpServletRequest request) {
+        //判断用户是否登录
+        User loginUser = userService.getLoginUser(request);
+        Long id = loginUser.getId();
+        return ResultUtils.success(userService.getUserSignInRecord(id, year));
     }
 }
