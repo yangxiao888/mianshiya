@@ -16,10 +16,7 @@ import com.yangxiao.mianshiya.common.ResultUtils;
 import com.yangxiao.mianshiya.constant.UserConstant;
 import com.yangxiao.mianshiya.exception.BusinessException;
 import com.yangxiao.mianshiya.exception.ThrowUtils;
-import com.yangxiao.mianshiya.model.dto.question.QuestionAddRequest;
-import com.yangxiao.mianshiya.model.dto.question.QuestionEditRequest;
-import com.yangxiao.mianshiya.model.dto.question.QuestionQueryRequest;
-import com.yangxiao.mianshiya.model.dto.question.QuestionUpdateRequest;
+import com.yangxiao.mianshiya.model.dto.question.*;
 import com.yangxiao.mianshiya.model.entity.Question;
 import com.yangxiao.mianshiya.model.entity.QuestionBankQuestion;
 import com.yangxiao.mianshiya.model.entity.User;
@@ -52,6 +49,8 @@ public class QuestionController {
     @Resource
     private QuestionService questionService;
 
+    @Resource
+    private QuestionBankQuestionService questionBankQuestionService;
 
 
     @Resource
@@ -285,9 +284,24 @@ public class QuestionController {
 
         // 获取封装类
         return ResultUtils.success(questionService.getQuestionVOPage(questionPage, request));
-
-
     }
+
+    /**
+     * 批量删除题目
+     *
+     * @param questionBatchDeleteRequest
+     * @param request
+     * @return
+     */
+    @PostMapping("/delete/batch")
+    @AuthCheck(mustRole = UserConstant.ADMIN_ROLE)
+    public BaseResponse<Boolean> batchDeleteQuestions(@RequestBody QuestionBatchDeleteRequest questionBatchDeleteRequest,
+                                                      HttpServletRequest request) {
+        ThrowUtils.throwIf(questionBatchDeleteRequest == null, ErrorCode.PARAMS_ERROR);
+        questionService.batchDeleteQuestions(questionBatchDeleteRequest.getQuestionIdList());
+        return ResultUtils.success(true);
+    }
+
 
     // endregion
 }

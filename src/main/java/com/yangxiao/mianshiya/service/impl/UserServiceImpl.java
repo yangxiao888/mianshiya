@@ -312,7 +312,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
      */
     @Override
     public ArrayList<Integer> getUserSignInRecord(Long userId, Integer year) {
-        if(year == null) {
+        if (year == null) {
             year = LocalDate.now().getYear();
         }
         //获取key

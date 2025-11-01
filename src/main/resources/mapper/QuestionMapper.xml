@@ -29,7 +29,5 @@
 
     <select id="listQuestionWithDelete" resultType="com.yangxiao.mianshiya.model.entity.Question">
             select * from question where updateTime >= #{date}
-
-
     </select>
 </mapper>

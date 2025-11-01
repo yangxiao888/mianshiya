@@ -6,8 +6,10 @@ import com.baomidou.mybatisplus.extension.service.IService;
 import com.yangxiao.mianshiya.model.dto.question.QuestionQueryRequest;
 import com.yangxiao.mianshiya.model.entity.Question;
 import com.yangxiao.mianshiya.model.vo.QuestionVO;
+import org.springframework.transaction.annotation.Transactional;
 
 import javax.servlet.http.HttpServletRequest;
+import java.util.List;
 
 /**
  * 题目服务
@@ -66,4 +68,13 @@ public interface QuestionService extends IService<Question> {
      * @return
      */
     Page<Question> searchForEs(QuestionQueryRequest questionQueryRequest);
+
+
+    /**
+     * 批量删除题目
+     *
+     * @param questionIdList
+     */
+    @Transactional(rollbackFor = Exception.class)
+    void batchDeleteQuestions(List<Long> questionIdList);
 }

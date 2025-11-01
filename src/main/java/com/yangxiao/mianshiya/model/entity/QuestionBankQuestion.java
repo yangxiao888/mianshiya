@@ -6,6 +6,7 @@ import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.Data;
 
 import java.util.Date;
+import java.util.List;
 
 /**
  * 题库题目
@@ -44,4 +45,5 @@ public class QuestionBankQuestion {
      * 更新时间
      */
     private Date updateTime;
+
 }

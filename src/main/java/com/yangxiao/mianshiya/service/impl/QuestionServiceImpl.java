@@ -8,6 +8,7 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.yangxiao.mianshiya.common.ErrorCode;
 import com.yangxiao.mianshiya.constant.CommonConstant;
+import com.yangxiao.mianshiya.exception.BusinessException;
 import com.yangxiao.mianshiya.exception.ThrowUtils;
 import com.yangxiao.mianshiya.mapper.QuestionMapper;
 import com.yangxiao.mianshiya.model.dto.question.QuestionEsDTO;
@@ -29,6 +30,8 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
+import org.springframework.dao.DataAccessException;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.elasticsearch.client.elc.ElasticsearchTemplate;
 import org.springframework.data.elasticsearch.core.ElasticsearchRestTemplate;
@@ -322,6 +325,63 @@ public class QuestionServiceImpl extends ServiceImpl<QuestionMapper, Question> i
         return page;
     }
 
+    /**
+     * 批量删除题目
+     *
+     * @param questionIdList
+     */
+    @Override
+    public void batchDeleteQuestions(List<Long> questionIdList) {
+        //参数校验
+        ThrowUtils.throwIf(questionIdList == null, ErrorCode.PARAMS_ERROR, "题目列表为空");
+
+
+        //删除题目
+        for (Long questionId : questionIdList) {
+
+            boolean result;
+            try {
+                result = this.removeById(questionId);
+                if (!result) {
+                    throw new BusinessException(ErrorCode.OPERATION_ERROR, "删除题目失败");
+                }
+            } catch (DataAccessException e) {
+                log.error("数据库连接问题、事务问题等导致操作失败，题目 id: {}, 错误信息: {}",
+                        questionId, e.getMessage());
+                throw new BusinessException(ErrorCode.OPERATION_ERROR, "数据库操作失败");
+            } catch (Exception e) {
+                // 捕获其他异常，做通用处理
+                log.error("删除题目时发生未知错误，题目 id: {}, 错误信息: {}",
+                        questionId, e.getMessage());
+                throw new BusinessException(ErrorCode.OPERATION_ERROR, "删除题库题目关联关系");
+            }
+
+            //检验题目已经存在与题库之中
+            LambdaQueryWrapper<QuestionBankQuestion> lambdaQueryWrapper = Wrappers.lambdaQuery(QuestionBankQuestion.class)
+                    .eq(QuestionBankQuestion::getQuestionId, questionId);
+            QuestionBankQuestion questionBankQuestionServiceOne = questionBankQuestionService.getOne(lambdaQueryWrapper);
+            if (questionBankQuestionServiceOne != null) {
+                //删除题目题库关联关系
+                try {
+                    result = questionBankQuestionService.remove(lambdaQueryWrapper);
+                    if (!result) {
+                        throw new BusinessException(ErrorCode.OPERATION_ERROR, "删除题库题目关联关系");
+                    }
+                } catch (DataAccessException e) {
+                    log.error("数据库连接问题、事务问题等导致操作失败，题目 id: {}, 题库 id: {}, 错误信息: {}",
+                            questionId, questionBankQuestionServiceOne.getQuestionBankId(), e.getMessage());
+                    throw new BusinessException(ErrorCode.OPERATION_ERROR, "数据库操作失败");
+                } catch (Exception e) {
+                    // 捕获其他异常，做通用处理
+                    log.error("删除题目题库关系时发生未知错误，题目 id: {}, 题库 id: {}, 错误信息: {}",
+                            questionId, questionBankQuestionServiceOne.getQuestionBankId(), e.getMessage());
+                    throw new BusinessException(ErrorCode.OPERATION_ERROR, "删除题库题目关联关系");
+                }
+            }
+
+        }
+
+    }
 
 
 }

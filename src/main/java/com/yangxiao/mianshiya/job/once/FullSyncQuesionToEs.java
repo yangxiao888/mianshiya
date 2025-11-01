@@ -17,7 +17,7 @@ import java.util.stream.Collectors;
  * 题目全量同步到Es
  */
 // todo 取消注释开启任务
-@Component
+//@Component
 @Slf4j
 public class FullSyncQuesionToEs implements CommandLineRunner {
     @Resource
