@@ -8,11 +8,13 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.jd.platform.hotkey.client.callback.JdHotKeyStore;
 import com.yangxiao.mianshiya.annotation.AuthCheck;
 import com.yangxiao.mianshiya.common.BaseResponse;
 import com.yangxiao.mianshiya.common.DeleteRequest;
 import com.yangxiao.mianshiya.common.ErrorCode;
 import com.yangxiao.mianshiya.common.ResultUtils;
+import com.yangxiao.mianshiya.constant.HotKeyConstant;
 import com.yangxiao.mianshiya.constant.UserConstant;
 import com.yangxiao.mianshiya.exception.BusinessException;
 import com.yangxiao.mianshiya.exception.ThrowUtils;
@@ -20,6 +22,7 @@ import com.yangxiao.mianshiya.model.dto.question.*;
 import com.yangxiao.mianshiya.model.entity.Question;
 import com.yangxiao.mianshiya.model.entity.QuestionBankQuestion;
 import com.yangxiao.mianshiya.model.entity.User;
+import com.yangxiao.mianshiya.model.vo.QuestionBankVO;
 import com.yangxiao.mianshiya.model.vo.QuestionVO;
 import com.yangxiao.mianshiya.service.QuestionBankQuestionService;
 import com.yangxiao.mianshiya.service.QuestionService;
@@ -153,9 +156,26 @@ public class QuestionController {
     @GetMapping("/get/vo")
     public BaseResponse<QuestionVO> getQuestionVOById(long id, HttpServletRequest request) {
         ThrowUtils.throwIf(id <= 0, ErrorCode.PARAMS_ERROR);
+    //热点题库自动缓存
+        //获取热key
+        String hotkey = HotKeyConstant.getQuestionHotkey(id);
+        //判断是否是热点题库
+        if(JdHotKeyStore.isHotKey(hotkey)){
+            //从本地缓存查取数据
+            QuestionVO cachedQuestionVO =(QuestionVO) JdHotKeyStore.get(hotkey);
+            //缓存中有值
+            if(cachedQuestionVO != null){
+                return ResultUtils.success(cachedQuestionVO);
+            }
+        }
+
         // 查询数据库
         Question question = questionService.getById(id);
         ThrowUtils.throwIf(question == null, ErrorCode.NOT_FOUND_ERROR);
+
+        //刚设置为热点，但没设置缓存，现在设置缓存（不是热点不会执行）
+        JdHotKeyStore.smartSet(hotkey,questionService.getQuestionVO(question, request));
+
         // 获取封装类
         return ResultUtils.success(questionService.getQuestionVO(question, request));
     }

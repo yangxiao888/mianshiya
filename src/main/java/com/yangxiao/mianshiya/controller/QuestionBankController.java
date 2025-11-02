@@ -1,11 +1,13 @@
 package com.yangxiao.mianshiya.controller;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.jd.platform.hotkey.client.callback.JdHotKeyStore;
 import com.yangxiao.mianshiya.annotation.AuthCheck;
 import com.yangxiao.mianshiya.common.BaseResponse;
 import com.yangxiao.mianshiya.common.DeleteRequest;
 import com.yangxiao.mianshiya.common.ErrorCode;
 import com.yangxiao.mianshiya.common.ResultUtils;
+import com.yangxiao.mianshiya.constant.HotKeyConstant;
 import com.yangxiao.mianshiya.constant.UserConstant;
 import com.yangxiao.mianshiya.exception.BusinessException;
 import com.yangxiao.mianshiya.exception.ThrowUtils;
@@ -160,8 +162,23 @@ public class QuestionBankController {
         // 查询数据库,查询基本数据信息
         Long id = questionBankQueryRequest.getId();
         ThrowUtils.throwIf(id <= 0, ErrorCode.PARAMS_ERROR);
-        QuestionBank questionBank = questionBankService.getById(id);
+
+    //热点题库自动缓存
+        //获取热key
+        String hotkey = HotKeyConstant.getBankHotkey(id);
+        //判断是否是热点题库
+        if(JdHotKeyStore.isHotKey(hotkey)){
+            //从本地缓存查取数据
+            QuestionBankVO cachedQuestionBankVO =(QuestionBankVO) JdHotKeyStore.get(hotkey);
+            //缓存中有值
+            if(cachedQuestionBankVO != null){
+                return ResultUtils.success(cachedQuestionBankVO);
+            }
+        }
+
+
         // 查询题库封装类
+        QuestionBank questionBank = questionBankService.getById(id);
         ThrowUtils.throwIf(questionBank == null, ErrorCode.NOT_FOUND_ERROR);
         QuestionBankVO questionBankVO = questionBankService.getQuestionBankVO(questionBank, request);
         //判断是否查询
@@ -172,6 +189,10 @@ public class QuestionBankController {
             Page<Question> questionPage = questionService.listQuestionByPage(questionQueryRequest);
             questionBankVO.setQuestionPage(questionPage);
         }
+
+        //刚设置为热点，但没设置缓存,现在设置缓存
+        JdHotKeyStore.smartSet(hotkey, questionBankVO);
+
         //获取封装类
         return ResultUtils.success(questionBankVO);
     }
