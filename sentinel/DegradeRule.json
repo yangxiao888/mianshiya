@@ -1,0 +1,42 @@
+[
+  {
+    "count": 0.2,
+    "grade": 2,
+    "limitApp": "default",
+    "minRequestAmount": 10,
+    "resource": "listQuestionBankVOByPage",
+    "slowRatioThreshold": 1.0,
+    "statIntervalMs": 30000,
+    "timeWindow": 60
+  },
+  {
+    "count": 0.2,
+    "grade": 2,
+    "limitApp": "default",
+    "minRequestAmount": 10,
+    "resource": "listQuestionVOByPage",
+    "slowRatioThreshold": 3000.0,
+    "statIntervalMs": 30000,
+    "timeWindow": 60
+  },
+  {
+    "count": 0.1,
+    "grade": 1,
+    "limitApp": "default",
+    "minRequestAmount": 10,
+    "resource": "listQuestionVOByPage",
+    "slowRatioThreshold": 1.0,
+    "statIntervalMs": 30000,
+    "timeWindow": 60
+  },
+  {
+    "count": 0.1,
+    "grade": 1,
+    "limitApp": "default",
+    "minRequestAmount": 10,
+    "resource": "listQuestionBankVOByPage",
+    "slowRatioThreshold": 1.0,
+    "statIntervalMs": 30000,
+    "timeWindow": 60
+  }
+]

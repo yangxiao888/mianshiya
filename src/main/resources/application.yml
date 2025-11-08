@@ -106,12 +106,29 @@ spring:
     uris: http://localhost:9200
     username: root
     password: 123456
-  # 热 key 探测
+  #sentinel 配置
+  cloud:
+    sentinel:
+      transport:
+        dashboard: localhost:8131
+      http-method-specify: true # 开启请求方式前缀
+# 配置中心
+nacos:
+  config:
+    server-addr: 127.0.0.1:8848  # nacos 地址
+    bootstrap:
+      enable: true  # 预加载
+    data-id: mianshiya # 控制台填写的 Data ID
+    group: DEFAULT_GROUP # 控制台填写的 group
+    type: yaml  # 选择的文件格式
+    auto-refresh: true # 开启自动刷新
+# 热 key 探测
 hotkey:
   app-name: mianshiya
   caffeine-size: 10000
   push-period: 1000
   etcd-server: http://localhost:2379
+
   # 文件上传
   servlet:
     multipart:

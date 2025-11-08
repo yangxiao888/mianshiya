@@ -3,10 +3,12 @@ package com.yangxiao.mianshiya.controller;
 import cn.hutool.core.collection.CollUtil;
 import cn.hutool.json.JSONUtil;
 import co.elastic.clients.elasticsearch._types.ElasticsearchException;
-import com.baomidou.mybatisplus.core.conditions.Wrapper;
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
-import com.baomidou.mybatisplus.core.toolkit.Wrappers;
+import com.alibaba.csp.sentinel.Entry;
+import com.alibaba.csp.sentinel.EntryType;
+import com.alibaba.csp.sentinel.SphU;
+import com.alibaba.csp.sentinel.Tracer;
+import com.alibaba.csp.sentinel.slots.block.BlockException;
+import com.alibaba.csp.sentinel.slots.block.degrade.DegradeException;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.jd.platform.hotkey.client.callback.JdHotKeyStore;
 import com.yangxiao.mianshiya.annotation.AuthCheck;
@@ -20,23 +22,18 @@ import com.yangxiao.mianshiya.exception.BusinessException;
 import com.yangxiao.mianshiya.exception.ThrowUtils;
 import com.yangxiao.mianshiya.model.dto.question.*;
 import com.yangxiao.mianshiya.model.entity.Question;
-import com.yangxiao.mianshiya.model.entity.QuestionBankQuestion;
 import com.yangxiao.mianshiya.model.entity.User;
-import com.yangxiao.mianshiya.model.vo.QuestionBankVO;
 import com.yangxiao.mianshiya.model.vo.QuestionVO;
-import com.yangxiao.mianshiya.service.QuestionBankQuestionService;
 import com.yangxiao.mianshiya.service.QuestionService;
 import com.yangxiao.mianshiya.service.UserService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
 import org.springframework.web.bind.annotation.*;
-
 import javax.annotation.Resource;
 import javax.servlet.http.HttpServletRequest;
-import java.io.IOException;
 import java.util.List;
-import java.util.Set;
-import java.util.stream.Collectors;
+
+import static com.yangxiao.mianshiya.sentinel.SentinelConstant.QUESTION_LIST_PAGE_SENTINEL;
 
 /**
  * 题目接口
@@ -51,10 +48,6 @@ public class QuestionController {
 
     @Resource
     private QuestionService questionService;
-
-    @Resource
-    private QuestionBankQuestionService questionBankQuestionService;
-
 
     @Resource
     private UserService userService;
@@ -159,7 +152,7 @@ public class QuestionController {
     //热点题库自动缓存
         //获取热key
         String hotkey = HotKeyConstant.getQuestionHotkey(id);
-        //判断是否是热点题库
+        //判断是否是热点题目
         if(JdHotKeyStore.isHotKey(hotkey)){
             //从本地缓存查取数据
             QuestionVO cachedQuestionVO =(QuestionVO) JdHotKeyStore.get(hotkey);
@@ -207,13 +200,44 @@ public class QuestionController {
         long size = questionQueryRequest.getPageSize();
         // 限制爬虫
         ThrowUtils.throwIf(size > 20, ErrorCode.PARAMS_ERROR);
-        // 查询数据库
-        Page<Question> questionPage = questionService.page(new Page<>(current, size),
-                questionService.getQueryWrapper(questionQueryRequest));
-        // 获取封装类
-        return ResultUtils.success(questionService.getQuestionVOPage(questionPage, request));
-    }
 
+        //基于单IP热点参数限流
+        String remoteAddr = request.getRemoteAddr();
+        Entry entry = null;
+        try {
+            entry = SphU.entry(QUESTION_LIST_PAGE_SENTINEL, EntryType.IN, 1, remoteAddr);
+            // 被保护的业务代码
+            // 查询数据库
+            Page<Question> questionPage = questionService.page(new Page<>(current, size),
+                    questionService.getQueryWrapper(questionQueryRequest));
+            // 获取封装类
+            return ResultUtils.success(questionService.getQuestionVOPage(questionPage, request));
+        } catch (Throwable ex) {
+            // 业务异常
+            if (!BlockException.isBlockException(ex)) {
+                Tracer.trace(ex);
+                return ResultUtils.error(ErrorCode.SYSTEM_ERROR, "系统错误");
+            }
+            // 熔断后走降级操作
+            if (ex instanceof DegradeException) {
+                return handleFallback(questionQueryRequest, request, ex);
+            }
+            // 限流操作
+            return ResultUtils.error(ErrorCode.SYSTEM_ERROR, "访问过于频繁，请稍后再试");
+        }
+        finally {
+            if (entry != null) {
+                entry.exit(1, remoteAddr);
+            }
+        }
+    }
+    //fallback降级方法
+    public  BaseResponse<Page<QuestionVO>>  handleFallback(@RequestBody QuestionQueryRequest questionQueryRequest,
+                                                           HttpServletRequest request, Throwable ex){
+        //返回空数据
+        return  ResultUtils.success(null);
+
+    }
     /**
      * 分页获取当前登录用户创建的题目列表
      *

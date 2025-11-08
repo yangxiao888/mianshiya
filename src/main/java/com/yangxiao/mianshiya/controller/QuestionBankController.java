@@ -1,5 +1,8 @@
 package com.yangxiao.mianshiya.controller;
 
+import com.alibaba.csp.sentinel.annotation.SentinelResource;
+import com.alibaba.csp.sentinel.slots.block.BlockException;
+import com.alibaba.csp.sentinel.slots.block.degrade.DegradeException;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.jd.platform.hotkey.client.callback.JdHotKeyStore;
 import com.yangxiao.mianshiya.annotation.AuthCheck;
@@ -29,6 +32,9 @@ import org.springframework.web.bind.annotation.*;
 
 import javax.annotation.Resource;
 import javax.servlet.http.HttpServletRequest;
+
+
+import static com.yangxiao.mianshiya.sentinel.SentinelConstant.QUESTIONBANK_LIST_PAGE_SENTINEL;
 
 /**
  * 题库接口
@@ -222,6 +228,12 @@ public class QuestionBankController {
      * @return
      */
     @PostMapping("/list/page/vo")
+    //声明sentinel资源
+    @SentinelResource(
+            value = QUESTIONBANK_LIST_PAGE_SENTINEL,
+            blockHandler = "handleBlockException",
+            fallback = "handleFallback"
+    )
     public BaseResponse<Page<QuestionBankVO>> listQuestionBankVOByPage(@RequestBody QuestionBankQueryRequest questionBankQueryRequest,
                                                                HttpServletRequest request) {
         long current = questionBankQueryRequest.getCurrent();
@@ -234,6 +246,28 @@ public class QuestionBankController {
         // 获取封装类
         return ResultUtils.success(questionBankService.getQuestionBankVOPage(questionBankPage, request));
     }
+    // region 限流，熔断降级方法
+
+    //block阻塞方法
+    public BaseResponse<Page<QuestionBankVO>> handleBlockException(@RequestBody QuestionBankQueryRequest questionBankQueryRequest,
+                                                                   HttpServletRequest request, BlockException ex) {
+        //判断是否是熔断需要走降级
+        if(ex instanceof DegradeException){
+               return handleFallback(questionBankQueryRequest, request, ex);
+        }
+
+        //限流操作
+        return ResultUtils.error(ErrorCode.SYSTEM_ERROR,"系统内部压力过大，请稍后重试");
+    }
+    //fallback降级方法
+    public BaseResponse<Page<QuestionBankVO>>  handleFallback(@RequestBody QuestionBankQueryRequest questionBankQueryRequest,
+                                                              HttpServletRequest request, Throwable ex){
+        //返回空数据
+        return  ResultUtils.success(null);
+
+    }
+    // endregion
+
 
     /**
      * 分页获取当前登录用户创建的题库列表
