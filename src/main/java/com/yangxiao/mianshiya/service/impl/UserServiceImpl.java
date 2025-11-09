@@ -2,6 +2,7 @@ package com.yangxiao.mianshiya.service.impl;
 
 import static com.yangxiao.mianshiya.constant.UserConstant.USER_LOGIN_STATE;
 
+import cn.dev33.satoken.stp.StpUtil;
 import cn.hutool.core.collection.CollUtil;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
@@ -15,6 +16,7 @@ import com.yangxiao.mianshiya.model.entity.User;
 import com.yangxiao.mianshiya.model.enums.UserRoleEnum;
 import com.yangxiao.mianshiya.model.vo.LoginUserVO;
 import com.yangxiao.mianshiya.model.vo.UserVO;
+import com.yangxiao.mianshiya.satoken.DeviceUtils;
 import com.yangxiao.mianshiya.service.UserService;
 import com.yangxiao.mianshiya.utils.SqlUtils;
 
@@ -114,8 +116,13 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
             log.info("user login failed, userAccount cannot match userPassword");
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "用户不存在或密码错误");
         }
-        // 3. 记录用户的登录态
-        request.getSession().setAttribute(USER_LOGIN_STATE, user);
+       /* // 3. 记录用户的登录态
+        request.getSession().setAttribute(USER_LOGIN_STATE, user);*/
+
+        //Sa-Token登录，并指定设备信息，实现同端登录互斥
+        StpUtil.login(user.getId(), DeviceUtils.getRequestDevice(request));
+        StpUtil.getSession().set(USER_LOGIN_STATE, user);
+
         return this.getLoginUserVO(user);
     }
 
@@ -160,18 +167,11 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
     @Override
     public User getLoginUser(HttpServletRequest request) {
         // 先判断是否已登录
-        Object userObj = request.getSession().getAttribute(USER_LOGIN_STATE);
-        User currentUser = (User) userObj;
-        if (currentUser == null || currentUser.getId() == null) {
+        Object loginId = StpUtil.getLoginIdDefaultNull();
+        if (Objects.isNull(loginId)) {
             throw new BusinessException(ErrorCode.NOT_LOGIN_ERROR);
         }
-        // 从数据库查询（追求性能的话可以注释，直接走缓存）
-        long userId = currentUser.getId();
-        currentUser = this.getById(userId);
-        if (currentUser == null) {
-            throw new BusinessException(ErrorCode.NOT_LOGIN_ERROR);
-        }
-        return currentUser;
+        return (User) StpUtil.getSessionByLoginId(loginId).get(USER_LOGIN_STATE);
     }
 
     /**
@@ -183,14 +183,11 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
     @Override
     public User getLoginUserPermitNull(HttpServletRequest request) {
         // 先判断是否已登录
-        Object userObj = request.getSession().getAttribute(USER_LOGIN_STATE);
-        User currentUser = (User) userObj;
-        if (currentUser == null || currentUser.getId() == null) {
-            return null;
+        Object loginId = StpUtil.getLoginIdDefaultNull();
+        if (Objects.isNull(loginId)) {
+            throw new BusinessException(ErrorCode.NOT_LOGIN_ERROR);
         }
-        // 从数据库查询（追求性能的话可以注释，直接走缓存）
-        long userId = currentUser.getId();
-        return this.getById(userId);
+        return (User) StpUtil.getSessionByLoginId(loginId).get(USER_LOGIN_STATE);
     }
 
     /**
@@ -202,7 +199,9 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
     @Override
     public boolean isAdmin(HttpServletRequest request) {
         // 仅管理员可查询
-        Object userObj = request.getSession().getAttribute(USER_LOGIN_STATE);
+        // 基于 Sa-Token 改造
+        Object userObj = StpUtil.getSession().get(USER_LOGIN_STATE);
+        // Object userObj = request.getSession().getAttribute(USER_LOGIN_STATE);
         User user = (User) userObj;
         return isAdmin(user);
     }
@@ -219,11 +218,9 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
      */
     @Override
     public boolean userLogout(HttpServletRequest request) {
-        if (request.getSession().getAttribute(USER_LOGIN_STATE) == null) {
-            throw new BusinessException(ErrorCode.OPERATION_ERROR, "未登录");
-        }
+        StpUtil.checkLogin();
         // 移除登录态
-        request.getSession().removeAttribute(USER_LOGIN_STATE);
+        StpUtil.logout();
         return true;
     }
 
@@ -297,7 +294,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         //获取当天的天数
         int dayOfYear = now.getDayOfYear();
         //检查当天是否签到
-        if(!SignInBitSet.get(dayOfYear)) {
+        if (!SignInBitSet.get(dayOfYear)) {
             //没有签到，添加记录
             return SignInBitSet.set(dayOfYear, true);
         }
@@ -342,6 +339,6 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
             index = bitSet.nextSetBit(index + 1);
         }
 
-        return  userSignInList;
+        return userSignInList;
     }
 }

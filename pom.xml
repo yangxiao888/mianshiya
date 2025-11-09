@@ -96,6 +96,12 @@
             <artifactId>nacos-config-spring-boot-starter</artifactId>
             <version>0.2.12</version>
         </dependency>
+        <!-- Sa-Token 权限认证，在线文档：https://sa-token.cc -->
+        <dependency>
+            <groupId>cn.dev33</groupId>
+            <artifactId>sa-token-spring-boot-starter</artifactId>
+            <version>1.44.0</version>
+        </dependency>
         <!-- https://mvnrepository.com/artifact/com.github.binarywang/wx-java-mp-spring-boot-starter -->
         <dependency>
             <groupId>com.github.binarywang</groupId>
