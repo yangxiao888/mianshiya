@@ -1,6 +1,7 @@
 package com.yangxiao.mianshiya.controller;
 
 import cn.dev33.satoken.annotation.SaCheckRole;
+import cn.dev33.satoken.stp.StpUtil;
 import cn.hutool.core.collection.CollUtil;
 import cn.hutool.json.JSONUtil;
 import co.elastic.clients.elasticsearch._types.ElasticsearchException;
@@ -21,6 +22,7 @@ import com.yangxiao.mianshiya.constant.HotKeyConstant;
 import com.yangxiao.mianshiya.constant.UserConstant;
 import com.yangxiao.mianshiya.exception.BusinessException;
 import com.yangxiao.mianshiya.exception.ThrowUtils;
+import com.yangxiao.mianshiya.manager.CounterManager;
 import com.yangxiao.mianshiya.model.dto.question.*;
 import com.yangxiao.mianshiya.model.entity.Question;
 import com.yangxiao.mianshiya.model.entity.User;
@@ -28,11 +30,14 @@ import com.yangxiao.mianshiya.model.vo.QuestionVO;
 import com.yangxiao.mianshiya.service.QuestionService;
 import com.yangxiao.mianshiya.service.UserService;
 import lombok.extern.slf4j.Slf4j;
+import org.redisson.api.RedissonClient;
 import org.springframework.beans.BeanUtils;
 import org.springframework.web.bind.annotation.*;
+
 import javax.annotation.Resource;
 import javax.servlet.http.HttpServletRequest;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 import static com.yangxiao.mianshiya.sentinel.SentinelConstant.QUESTION_LIST_PAGE_SENTINEL;
 
@@ -150,15 +155,20 @@ public class QuestionController {
     @GetMapping("/get/vo")
     public BaseResponse<QuestionVO> getQuestionVOById(long id, HttpServletRequest request) {
         ThrowUtils.throwIf(id <= 0, ErrorCode.PARAMS_ERROR);
-    //热点题库自动缓存
+
+        //检测是否爬虫
+        User loginUser = userService.getLoginUser(request);
+        crawlerDetect(loginUser.getId());
+
+        //热点题库自动缓存
         //获取热key
         String hotkey = HotKeyConstant.getQuestionHotkey(id);
         //判断是否是热点题目
-        if(JdHotKeyStore.isHotKey(hotkey)){
+        if (JdHotKeyStore.isHotKey(hotkey)) {
             //从本地缓存查取数据
-            QuestionVO cachedQuestionVO =(QuestionVO) JdHotKeyStore.get(hotkey);
+            QuestionVO cachedQuestionVO = (QuestionVO) JdHotKeyStore.get(hotkey);
             //缓存中有值
-            if(cachedQuestionVO != null){
+            if (cachedQuestionVO != null) {
                 return ResultUtils.success(cachedQuestionVO);
             }
         }
@@ -168,11 +178,54 @@ public class QuestionController {
         ThrowUtils.throwIf(question == null, ErrorCode.NOT_FOUND_ERROR);
 
         //刚设置为热点，但没设置缓存，现在设置缓存（不是热点不会执行）
-        JdHotKeyStore.smartSet(hotkey,questionService.getQuestionVO(question, request));
+        JdHotKeyStore.smartSet(hotkey, questionService.getQuestionVO(question, request));
 
         // 获取封装类
         return ResultUtils.success(questionService.getQuestionVO(question, request));
     }
+
+    // region 基于Redis的反爬方法
+
+    @Resource
+    private CounterManager counterManager;
+
+    /**
+     * 检测爬虫
+     *
+     * @param loginUserId
+     */
+    private void crawlerDetect(long loginUserId) {
+        // 调用多少次时告警
+        final int WARN_COUNT = 10;
+        // 超过多少次封号
+        final int BAN_COUNT = 20;
+
+        String key = String.format("user:access:%s", loginUserId);
+        //计数器
+        long count = counterManager.incrAndGetCounter(key, 1, TimeUnit.MINUTES, 180);
+        if (count > BAN_COUNT) {
+            //踢下线
+            StpUtil.kickout(loginUserId);
+
+            //封号处理
+            User user = new User();
+            user.setId(loginUserId);
+            user.setUserRole("ban");
+            userService.updateById(user);
+            //提示
+            throw new BusinessException(ErrorCode.NO_AUTH_ERROR,"账号被封禁，请联系管理员");
+        }
+        if (count == WARN_COUNT) {
+            //提示
+            throw new BusinessException(110, "警告访问太频繁");
+        }
+
+
+    }
+
+
+    // endregion
+
 
     /**
      * 分页获取题目列表（仅管理员可用）
@@ -225,20 +278,21 @@ public class QuestionController {
             }
             // 限流操作
             return ResultUtils.error(ErrorCode.SYSTEM_ERROR, "访问过于频繁，请稍后再试");
-        }
-        finally {
+        } finally {
             if (entry != null) {
                 entry.exit(1, remoteAddr);
             }
         }
     }
+
     //fallback降级方法
-    public  BaseResponse<Page<QuestionVO>>  handleFallback(@RequestBody QuestionQueryRequest questionQueryRequest,
-                                                           HttpServletRequest request, Throwable ex){
+    public BaseResponse<Page<QuestionVO>> handleFallback(@RequestBody QuestionQueryRequest questionQueryRequest,
+                                                         HttpServletRequest request, Throwable ex) {
         //返回空数据
-        return  ResultUtils.success(null);
+        return ResultUtils.success(null);
 
     }
+
     /**
      * 分页获取当前登录用户创建的题目列表
      *
@@ -312,7 +366,7 @@ public class QuestionController {
      */
     @PostMapping("/search/page/vo")
     public BaseResponse<Page<QuestionVO>> searchQuestionVOByPage(@RequestBody QuestionQueryRequest questionQueryRequest,
-                                                               HttpServletRequest request) {
+                                                                 HttpServletRequest request) {
         long current = questionQueryRequest.getCurrent();
         long size = questionQueryRequest.getPageSize();
         // 限制爬虫
@@ -320,7 +374,7 @@ public class QuestionController {
         Page<Question> questionPage = null;
         try {
             //查询Es
-             questionPage = questionService.searchForEs(questionQueryRequest);
+            questionPage = questionService.searchForEs(questionQueryRequest);
         } catch (ElasticsearchException e) {
             // 捕获异常，切换数据库
             log.error("ES查询失败，切换数据库：" + e.getMessage());
